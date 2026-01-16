@@ -1,0 +1,2482 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f0f1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>PocketMemory - Your Personal Memory Vault</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json,{%22name%22:%22PocketMemory%22,%22short_name%22:%22PocketMemory%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%230f0f1a%22,%22theme_color%22:%22%236366f1%22}">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    
+    <!-- Dexie.js for IndexedDB -->
+    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.min.js"></script>
+    
+    <style>
+        /* ============================================
+           DESIGN SYSTEM TOKENS
+           ============================================ */
+        :root {
+            /* Colors - Light Mode */
+            --color-bg-primary: #f8fafc;
+            --color-bg-secondary: #f1f5f9;
+            --color-bg-glass: rgba(255, 255, 255, 0.7);
+            --color-bg-glass-strong: rgba(255, 255, 255, 0.85);
+            --color-border-glass: rgba(255, 255, 255, 0.5);
+            --color-text-primary: #0f172a;
+            --color-text-secondary: #475569;
+            --color-text-muted: #94a3b8;
+            --color-accent: #6366f1;
+            --color-accent-hover: #4f46e5;
+            --color-accent-subtle: rgba(99, 102, 241, 0.1);
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-error: #ef4444;
+            --color-surface-elevated: rgba(255, 255, 255, 0.9);
+            
+            /* Typography Scale */
+            --text-xs: 0.75rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+            --text-3xl: 1.875rem;
+            --text-4xl: 2.25rem;
+            
+            /* Spacing Scale */
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-10: 2.5rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            
+            /* Border Radius */
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --radius-2xl: 1.5rem;
+            --radius-full: 9999px;
+            
+            /* Blur Strengths */
+            --blur-sm: 8px;
+            --blur-md: 16px;
+            --blur-lg: 24px;
+            --blur-xl: 40px;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.3);
+            
+            /* Transitions */
+            --transition-fast: 120ms ease-out;
+            --transition-normal: 200ms ease-out;
+            --transition-slow: 300ms ease-out;
+            --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .dark {
+            --color-bg-primary: #0f0f1a;
+            --color-bg-secondary: #1a1a2e;
+            --color-bg-glass: rgba(30, 30, 50, 0.6);
+            --color-bg-glass-strong: rgba(30, 30, 50, 0.85);
+            --color-border-glass: rgba(255, 255, 255, 0.1);
+            --color-text-primary: #f8fafc;
+            --color-text-secondary: #cbd5e1;
+            --color-text-muted: #64748b;
+            --color-accent: #818cf8;
+            --color-accent-hover: #6366f1;
+            --color-accent-subtle: rgba(129, 140, 248, 0.15);
+            --color-surface-elevated: rgba(40, 40, 70, 0.9);
+        }
+        
+        /* ============================================
+           BASE STYLES
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* Background gradient */
+        .app-bg {
+            position: fixed;
+            inset: 0;
+            background: 
+                radial-gradient(ellipse at 20% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
+                var(--color-bg-primary);
+            z-index: -1;
+        }
+        
+        /* ============================================
+           GLASS COMPONENTS
+           ============================================ */
+        .glass-card {
+            background: var(--color-bg-glass);
+            backdrop-filter: blur(var(--blur-md));
+            -webkit-backdrop-filter: blur(var(--blur-md));
+            border: 1px solid var(--color-border-glass);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg);
+            transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .glass-card-strong {
+            background: var(--color-bg-glass-strong);
+            backdrop-filter: blur(var(--blur-lg));
+            -webkit-backdrop-filter: blur(var(--blur-lg));
+            border: 1px solid var(--color-border-glass);
+            border-radius: var(--radius-xl);
+        }
+        
+        .glass-search {
+            background: var(--color-bg-glass-strong);
+            backdrop-filter: blur(var(--blur-xl));
+            -webkit-backdrop-filter: blur(var(--blur-xl));
+            border: 2px solid transparent;
+            border-radius: var(--radius-2xl);
+            box-shadow: var(--shadow-xl), var(--shadow-glow);
+            transition: all var(--transition-normal);
+        }
+        
+        .glass-search:focus-within {
+            border-color: var(--color-accent);
+            box-shadow: var(--shadow-xl), 0 0 60px rgba(99, 102, 241, 0.4);
+        }
+        
+        /* ============================================
+           ANSWER CARD
+           ============================================ */
+        .answer-card {
+            background: linear-gradient(135deg, var(--color-accent) 0%, #8b5cf6 100%);
+            border-radius: var(--radius-2xl);
+            padding: var(--space-6);
+            color: white;
+            box-shadow: var(--shadow-xl), 0 0 40px rgba(99, 102, 241, 0.4);
+            animation: slideUp 0.3s var(--transition-spring);
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        /* ============================================
+           BUTTONS
+           ============================================ */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-accent) 0%, #8b5cf6 100%);
+            color: white;
+            font-weight: 600;
+            padding: var(--space-3) var(--space-6);
+            border-radius: var(--radius-xl);
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            box-shadow: var(--shadow-md), 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg), 0 0 30px rgba(99, 102, 241, 0.5);
+        }
+        
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: var(--color-bg-glass);
+            backdrop-filter: blur(var(--blur-sm));
+            color: var(--color-text-primary);
+            font-weight: 500;
+            padding: var(--space-3) var(--space-5);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--color-border-glass);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--color-bg-glass-strong);
+        }
+        
+        .btn-icon {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-lg);
+            background: var(--color-bg-glass);
+            border: 1px solid var(--color-border-glass);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .btn-icon:hover {
+            background: var(--color-accent-subtle);
+            border-color: var(--color-accent);
+        }
+        
+        .fab {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom) + 24px);
+            right: 24px;
+            width: 60px;
+            height: 60px;
+            border-radius: var(--radius-full);
+            background: linear-gradient(135deg, var(--color-accent) 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-xl), 0 0 30px rgba(99, 102, 241, 0.5);
+            transition: all var(--transition-spring);
+            z-index: 100;
+        }
+        
+        .fab:hover {
+            transform: scale(1.1);
+        }
+        
+        .fab:active {
+            transform: scale(0.95);
+        }
+        
+        /* ============================================
+           FORM ELEMENTS
+           ============================================ */
+        .input-field {
+            width: 100%;
+            padding: var(--space-4);
+            background: var(--color-bg-glass);
+            border: 1px solid var(--color-border-glass);
+            border-radius: var(--radius-lg);
+            color: var(--color-text-primary);
+            font-size: var(--text-base);
+            font-family: inherit;
+            transition: all var(--transition-fast);
+        }
+        
+        .input-field::placeholder {
+            color: var(--color-text-muted);
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 3px var(--color-accent-subtle);
+        }
+        
+        /* ============================================
+           CATEGORY CHIPS
+           ============================================ */
+        .category-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-full);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .category-favorites { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+        .category-family { background: rgba(168, 85, 247, 0.15); color: #a78bfa; }
+        .category-important { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+        .category-health { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        .category-work { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+        .category-other { background: var(--color-accent-subtle); color: var(--color-accent); }
+        
+        /* ============================================
+           AVATAR
+           ============================================ */
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-full);
+            background: linear-gradient(135deg, var(--color-accent) 0%, #8b5cf6 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: var(--text-lg);
+            flex-shrink: 0;
+        }
+        
+        .avatar-lg {
+            width: 80px;
+            height: 80px;
+            font-size: var(--text-2xl);
+        }
+        
+        /* ============================================
+           SCREEN TRANSITIONS
+           ============================================ */
+        .screen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition-slow), transform var(--transition-slow);
+            transform: translateX(20px);
+            overflow: hidden;
+            min-height: 0; /* Critical for flexbox scroll */
+        }
+        
+        .screen.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(0);
+        }
+        
+        .screen.slide-out {
+            transform: translateX(-20px);
+        }
+        
+        /* Fixed header that doesn't scroll */
+        .screen > header {
+            flex-shrink: 0;
+        }
+        
+        /* ============================================
+           SCROLLABLE CONTENT
+           ============================================ */
+        .scroll-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: var(--space-4);
+            padding-bottom: calc(env(safe-area-inset-bottom) + 100px);
+            min-height: 0; /* Important for flex children to scroll */
+        }
+        
+        .scroll-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scroll-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .scroll-content::-webkit-scrollbar-thumb {
+            background: var(--color-text-muted);
+            border-radius: 3px;
+        }
+        
+        /* Ensure scrollable areas have proper height */
+        .scroll-wrapper {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Fields list scrolling */
+        .fields-scroll {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+            scroll-behavior: smooth;
+        }
+        
+        /* Custom scrollbar for fields */
+        .fields-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .fields-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .fields-scroll::-webkit-scrollbar-thumb {
+            background: var(--color-text-muted);
+            border-radius: 2px;
+            opacity: 0.5;
+        }
+        
+        /* Mobile touch improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .scroll-content,
+            .fields-scroll,
+            .sheet-content {
+                scroll-behavior: smooth;
+                scrollbar-width: none; /* Firefox */
+            }
+            
+            .scroll-content::-webkit-scrollbar,
+            .fields-scroll::-webkit-scrollbar,
+            .sheet-content::-webkit-scrollbar {
+                display: none; /* Chrome/Safari */
+            }
+        }
+        
+        /* Fields container styling */
+        .fields-container {
+            min-height: 100%;
+        }
+        
+        /* Sticky category headers with backdrop */
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            padding: var(--space-2) 0;
+            margin-top: calc(-1 * var(--space-2));
+            background: linear-gradient(to bottom, var(--color-bg-primary) 70%, transparent);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        
+        /* Scroll fade indicator at bottom */
+        .scroll-fade-bottom::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(to top, var(--color-bg-primary) 0%, transparent 100%);
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        /* ============================================
+           LOCK SCREEN
+           ============================================ */
+        .lock-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: var(--color-bg-primary);
+        }
+        
+        .pin-dots {
+            display: flex;
+            gap: var(--space-4);
+            margin: var(--space-8) 0;
+        }
+        
+        .pin-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: var(--radius-full);
+            background: var(--color-bg-glass);
+            border: 2px solid var(--color-border-glass);
+            transition: all var(--transition-fast);
+        }
+        
+        .pin-dot.filled {
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+            transform: scale(1.1);
+        }
+        
+        .pin-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-3);
+            max-width: 280px;
+        }
+        
+        .pin-key {
+            width: 72px;
+            height: 72px;
+            border-radius: var(--radius-full);
+            background: var(--color-bg-glass);
+            border: 1px solid var(--color-border-glass);
+            color: var(--color-text-primary);
+            font-size: var(--text-2xl);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .pin-key:hover {
+            background: var(--color-accent-subtle);
+            border-color: var(--color-accent);
+        }
+        
+        .pin-key:active {
+            transform: scale(0.95);
+        }
+        
+        /* ============================================
+           MODAL & BOTTOM SHEET
+           ============================================ */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition-normal);
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .bottom-sheet {
+            width: 100%;
+            max-width: 500px;
+            max-height: 85vh;
+            background: var(--color-bg-glass-strong);
+            backdrop-filter: blur(var(--blur-xl));
+            border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+            transform: translateY(100%);
+            transition: transform var(--transition-slow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .modal-overlay.active .bottom-sheet {
+            transform: translateY(0);
+        }
+        
+        .sheet-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--color-text-muted);
+            border-radius: 2px;
+            margin: var(--space-3) auto var(--space-2);
+            flex-shrink: 0;
+        }
+        
+        .sheet-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            padding: 0 var(--space-6) var(--space-6);
+            padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-6));
+        }
+        
+        .sheet-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .sheet-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .sheet-content::-webkit-scrollbar-thumb {
+            background: var(--color-text-muted);
+            border-radius: 2px;
+        }
+        
+        /* ============================================
+           TOAST / SNACKBAR
+           ============================================ */
+        .toast-container {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom) + 100px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+        }
+        
+        .toast {
+            background: var(--color-surface-elevated);
+            backdrop-filter: blur(var(--blur-md));
+            padding: var(--space-4) var(--space-6);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            animation: toastIn 0.3s var(--transition-spring);
+            min-width: 280px;
+        }
+        
+        .toast.toast-out {
+            animation: toastOut 0.2s ease-out forwards;
+        }
+        
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @keyframes toastOut {
+            to {
+                opacity: 0;
+                transform: translateY(-10px) scale(0.9);
+            }
+        }
+        
+        /* ============================================
+           SAFE AREAS
+           ============================================ */
+        .safe-top {
+            padding-top: max(env(safe-area-inset-top), var(--space-4));
+        }
+        
+        .safe-bottom {
+            padding-bottom: max(env(safe-area-inset-bottom), var(--space-4));
+        }
+        
+        /* ============================================
+           ACCESSIBILITY
+           ============================================ */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+        
+        /* Focus visible for keyboard navigation */
+        :focus-visible {
+            outline: 2px solid var(--color-accent);
+            outline-offset: 2px;
+        }
+        
+        /* Ensure minimum touch targets */
+        button, a, input, select, textarea {
+            min-height: 44px;
+        }
+        
+        /* ============================================
+           LOADING STATE
+           ============================================ */
+        .skeleton {
+            background: linear-gradient(
+                90deg,
+                var(--color-bg-glass) 25%,
+                var(--color-bg-glass-strong) 50%,
+                var(--color-bg-glass) 75%
+            );
+            background-size: 200% 100%;
+            animation: skeleton 1.5s ease-in-out infinite;
+            border-radius: var(--radius-md);
+        }
+        
+        @keyframes skeleton {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        /* ============================================
+           EMPTY STATE
+           ============================================ */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-12);
+            text-align: center;
+        }
+        
+        .empty-state svg {
+            width: 120px;
+            height: 120px;
+            color: var(--color-text-muted);
+            margin-bottom: var(--space-6);
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Background -->
+    <div class="app-bg"></div>
+    
+    <!-- App Container -->
+    <div id="app" class="relative w-full h-full">
+        <!-- Lock Screen -->
+        <div id="lockScreen" class="lock-screen">
+            <div class="app-bg"></div>
+            <div class="text-center relative z-10">
+                <div class="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold mb-2">PocketMemory</h1>
+                <p class="text-sm text-[var(--color-text-muted)] mb-2">Your Personal Memory Vault</p>
+                <p id="lockMessage" class="text-xs text-[var(--color-text-muted)]">Enter your PIN</p>
+                
+                <div class="pin-dots" id="pinDots">
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                </div>
+                
+                <div class="pin-keypad" id="pinKeypad">
+                    <button class="pin-key" data-key="1">1</button>
+                    <button class="pin-key" data-key="2">2</button>
+                    <button class="pin-key" data-key="3">3</button>
+                    <button class="pin-key" data-key="4">4</button>
+                    <button class="pin-key" data-key="5">5</button>
+                    <button class="pin-key" data-key="6">6</button>
+                    <button class="pin-key" data-key="7">7</button>
+                    <button class="pin-key" data-key="8">8</button>
+                    <button class="pin-key" data-key="9">9</button>
+                    <button class="pin-key" data-key="biometric" id="biometricBtn" style="display: none;">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"/>
+                        </svg>
+                    </button>
+                    <button class="pin-key" data-key="0">0</button>
+                    <button class="pin-key" data-key="delete">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- First time setup -->
+                <div id="setupPin" style="display: none;" class="mt-6">
+                    <p class="text-sm text-[var(--color-text-secondary)] mb-4">First time? Create a PIN</p>
+                    <button onclick="app.startPinSetup()" class="btn-primary">
+                        Set Up PIN
+                    </button>
+                    <button onclick="app.skipPin()" class="btn-secondary mt-2 block mx-auto">
+                        Skip for Now
+                    </button>
+                </div>
+            </div>
+            
+            <p class="absolute bottom-8 text-xs text-[var(--color-text-muted)] text-center px-8">
+                🔒 Stored only on this device. No cloud. No tracking.
+            </p>
+        </div>
+        
+        <!-- Home Screen -->
+        <div id="homeScreen" class="screen safe-top">
+            <!-- Header -->
+            <header class="px-4 pb-2">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h1 class="text-2xl font-bold">PocketMemory</h1>
+                        <p class="text-sm text-[var(--color-text-muted)]" id="homeSubtitle">Your personal memory vault</p>
+                    </div>
+                    <button class="btn-icon" onclick="app.navigateTo('settings')" aria-label="Settings">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="glass-search flex items-center gap-3 p-4">
+                    <svg class="w-5 h-5 text-[var(--color-text-muted)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="searchInput"
+                        class="flex-1 bg-transparent border-none outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
+                        placeholder="Search people, favorites, details..."
+                        autocomplete="off"
+                        aria-label="Search"
+                    >
+                    <button id="clearSearch" class="hidden" onclick="app.clearSearch()" aria-label="Clear search">
+                        <svg class="w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Content -->
+            <div class="scroll-content" id="homeContent">
+                <!-- Search Results (hidden by default) -->
+                <div id="searchResults" style="display: none;"></div>
+                
+                <!-- Default Home Content -->
+                <div id="defaultHome">
+                    <!-- Pinned People -->
+                    <section id="pinnedSection" class="mb-6" style="display: none;">
+                        <h2 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                            📌 Pinned
+                        </h2>
+                        <div id="pinnedPeople" class="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4"></div>
+                    </section>
+                    
+                    <!-- Recent Searches -->
+                    <section id="recentSection" class="mb-6" style="display: none;">
+                        <h2 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                            🕐 Recent Searches
+                        </h2>
+                        <div id="recentSearches" class="flex flex-wrap gap-2"></div>
+                    </section>
+                    
+                    <!-- All People -->
+                    <section id="allPeopleSection">
+                        <h2 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                            👥 People
+                        </h2>
+                        <div id="allPeople"></div>
+                    </section>
+                </div>
+            </div>
+            
+            <!-- FAB -->
+            <button class="fab" onclick="app.showAddPerson()" aria-label="Add person">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Person Detail Screen -->
+        <div id="personScreen" class="screen">
+            <!-- Header with back button - Fixed at top -->
+            <header class="safe-top px-4 pb-4 flex-shrink-0">
+                <div class="flex items-center gap-4 mb-4">
+                    <button class="btn-icon" onclick="app.navigateTo('home')" aria-label="Go back">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <div class="flex-1"></div>
+                    <button class="btn-icon" id="pinToggle" onclick="app.togglePin()" aria-label="Pin person">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon" onclick="app.showEditPerson()" aria-label="Edit person">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon text-red-400" onclick="app.confirmDeletePerson()" aria-label="Delete person">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Person Header Card -->
+                <div id="personHeader" class="glass-card-strong p-6 flex items-center gap-4"></div>
+            </header>
+            
+            <!-- Scrollable Fields Content -->
+            <div class="scroll-content" id="personFields">
+                <!-- Fields will be loaded here dynamically -->
+            </div>
+            
+            <!-- Add Field FAB -->
+            <button class="fab" onclick="app.showAddField()" aria-label="Add field">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Settings Screen -->
+        <div id="settingsScreen" class="screen">
+            <header class="safe-top px-4 pb-4">
+                <div class="flex items-center gap-4">
+                    <button class="btn-icon" onclick="app.navigateTo('home')" aria-label="Go back">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <h1 class="text-xl font-bold">Settings</h1>
+                </div>
+            </header>
+            
+            <div class="scroll-content">
+                <!-- Security -->
+                <section class="mb-6">
+                    <h2 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                        🔐 Security
+                    </h2>
+                    <div class="glass-card p-4 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="font-medium">App Lock</p>
+                                <p class="text-sm text-[var(--color-text-muted)]">Require PIN to open</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="appLockToggle" class="sr-only peer" onchange="app.toggleAppLock()">
+                                <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                            </label>
+                        </div>
+                        <div id="changePinOption" style="display: none;">
+                            <button class="btn-secondary w-full" onclick="app.showChangePinModal()">Change PIN</button>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Appearance -->
+                <section class="mb-6">
+                    <h2 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                        🎨 Appearance
+                    </h2>
+                    <div class="glass-card p-4 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="font-medium">Dark Mode</p>
+                                <p class="text-sm text-[var(--color-text-muted)]">Toggle dark theme</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="darkModeToggle" class="sr-only peer" onchange="app.toggleDarkMode()" checked>
+                                <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Backup -->
+                <section class="mb-6">
+                    <h2 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                        💾 Backup
+                    </h2>
+                    <div class="glass-card p-4 space-y-3">
+                        <button class="btn-secondary w-full flex items-center justify-center gap-2" onclick="app.exportBackup()">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                            </svg>
+                            Export Encrypted Backup
+                        </button>
+                        <button class="btn-secondary w-full flex items-center justify-center gap-2" onclick="app.importBackup()">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            Import Backup
+                        </button>
+                        <input type="file" id="importFile" accept=".pocketmemory" style="display: none;" onchange="app.handleImportFile(event)">
+                    </div>
+                </section>
+                
+                <!-- About -->
+                <section class="mb-6">
+                    <h2 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                        ℹ️ About
+                    </h2>
+                    <div class="glass-card p-4">
+                        <p class="font-medium">PocketMemory</p>
+                        <p class="text-sm text-[var(--color-text-muted)]">Version 1.0.0</p>
+                        <p class="text-sm text-[var(--color-text-muted)] mt-2">
+                            🔒 100% offline. Your data never leaves this device.
+                        </p>
+                        <p class="text-sm text-[var(--color-text-muted)] mt-1">
+                            No analytics. No tracking. No network calls.
+                        </p>
+                    </div>
+                </section>
+                
+                <!-- Danger Zone -->
+                <section class="mb-6">
+                    <h2 class="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
+                        ⚠️ Danger Zone
+                    </h2>
+                    <div class="glass-card p-4 border border-red-500/30">
+                        <button class="btn-secondary w-full text-red-400 border-red-500/30" onclick="app.confirmClearAllData()">
+                            Delete All Data
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Overlay -->
+    <div id="modalOverlay" class="modal-overlay" onclick="app.closeModal(event)">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-content" id="modalContent"></div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    
+    <!-- Confirmation Dialog Template -->
+    <template id="confirmDialogTemplate">
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold mb-2" id="confirmTitle">Confirm Action</h3>
+            <p class="text-[var(--color-text-secondary)] mb-6" id="confirmMessage">Are you sure?</p>
+            <div class="flex gap-3">
+                <button class="btn-secondary flex-1" onclick="app.closeModal()">Cancel</button>
+                <button class="btn-primary flex-1 !bg-red-500" id="confirmAction">Delete</button>
+            </div>
+        </div>
+    </template>
+    
+    <script>
+        // ============================================
+        // DATABASE SCHEMA & SETUP
+        // ============================================
+        const db = new Dexie('PocketMemoryDB');
+        
+        // Schema with version migrations
+        db.version(1).stores({
+            people: '++id, fullName, nickname, relationship, pinned, createdAt, updatedAt',
+            fields: '++id, personId, label, value, valueType, category, isSensitive, lastUpdated, [personId+label]',
+            settings: 'key',
+            recentSearches: '++id, query, timestamp',
+            // FTS index table (simulated full-text search)
+            searchIndex: '++id, personId, fieldId, type, term, [term+type]'
+        });
+        
+        // ============================================
+        // SEARCH SYNONYMS & ALIASES
+        // ============================================
+        const SYNONYMS = {
+            'dob': ['dob', 'birthday', 'birthdate', 'date of birth', 'born', 'birth date', 'bday'],
+            'favorite': ['favorite', 'favourite', 'fav', 'fave', 'preferred', 'likes'],
+            'food': ['food', 'dish', 'cuisine', 'meal', 'eat'],
+            'color': ['color', 'colour'],
+            'place': ['place', 'location', 'city', 'country', 'destination'],
+            'parents': ['parents', 'parent', 'mom', 'mother', 'dad', 'father', 'mum', 'papa', 'mama'],
+            'phone': ['phone', 'mobile', 'cell', 'telephone', 'number', 'contact'],
+            'email': ['email', 'e-mail', 'mail'],
+            'address': ['address', 'home', 'residence', 'location', 'street'],
+            'anniversary': ['anniversary', 'wedding', 'married'],
+            'allergies': ['allergies', 'allergy', 'allergic', 'intolerance']
+        };
+        
+        // Expand synonyms into reverse lookup
+        const SYNONYM_MAP = {};
+        for (const [canonical, synonyms] of Object.entries(SYNONYMS)) {
+            for (const syn of synonyms) {
+                if (!SYNONYM_MAP[syn]) SYNONYM_MAP[syn] = [];
+                SYNONYM_MAP[syn].push(canonical);
+            }
+        }
+        
+        // ============================================
+        // FIELD PRESETS
+        // ============================================
+        const FIELD_PRESETS = [
+            { label: 'Date of Birth', valueType: 'date', category: 'Important', icon: '🎂' },
+            { label: 'Favorite Food', valueType: 'text', category: 'Favorites', icon: '🍕' },
+            { label: 'Favorite Color', valueType: 'text', category: 'Favorites', icon: '🎨' },
+            { label: 'Favorite Place', valueType: 'text', category: 'Favorites', icon: '🌍' },
+            { label: 'Favorite Movie', valueType: 'text', category: 'Favorites', icon: '🎬' },
+            { label: 'Favorite Music', valueType: 'text', category: 'Favorites', icon: '🎵' },
+            { label: 'Mother\'s Name', valueType: 'text', category: 'Family', icon: '👩' },
+            { label: 'Father\'s Name', valueType: 'text', category: 'Family', icon: '👨' },
+            { label: 'Phone Number', valueType: 'phone', category: 'Important', icon: '📱' },
+            { label: 'Email', valueType: 'email', category: 'Work', icon: '✉️' },
+            { label: 'Address', valueType: 'text', category: 'Important', icon: '🏠' },
+            { label: 'Anniversary', valueType: 'date', category: 'Important', icon: '💍' },
+            { label: 'Allergies', valueType: 'text', category: 'Health', icon: '⚠️' },
+            { label: 'Blood Type', valueType: 'text', category: 'Health', icon: '🩸' },
+            { label: 'Nickname', valueType: 'text', category: 'Other', icon: '😊' }
+        ];
+        
+        const CATEGORIES = ['Favorites', 'Family', 'Important', 'Health', 'Work', 'Other'];
+        
+        // ============================================
+        // CRYPTO UTILITIES (AES-256-GCM)
+        // ============================================
+        const Crypto = {
+            // Generate a random UUID
+            uuid() {
+                return crypto.randomUUID ? crypto.randomUUID() : 
+                    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                        const r = Math.random() * 16 | 0;
+                        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+                    });
+            },
+            
+            // Derive key from password using PBKDF2
+            async deriveKey(password, salt) {
+                const enc = new TextEncoder();
+                const keyMaterial = await crypto.subtle.importKey(
+                    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+                );
+                return crypto.subtle.deriveKey(
+                    { name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' },
+                    keyMaterial,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['encrypt', 'decrypt']
+                );
+            },
+            
+            // Encrypt data with AES-256-GCM
+            async encrypt(data, password) {
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const key = await this.deriveKey(password, salt);
+                const enc = new TextEncoder();
+                const encrypted = await crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv },
+                    key,
+                    enc.encode(JSON.stringify(data))
+                );
+                // Combine salt + iv + encrypted data
+                const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+                combined.set(salt, 0);
+                combined.set(iv, salt.length);
+                combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+                return btoa(String.fromCharCode(...combined));
+            },
+            
+            // Decrypt data
+            async decrypt(encryptedBase64, password) {
+                const combined = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
+                const salt = combined.slice(0, 16);
+                const iv = combined.slice(16, 28);
+                const data = combined.slice(28);
+                const key = await this.deriveKey(password, salt);
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv },
+                    key,
+                    data
+                );
+                return JSON.parse(new TextDecoder().decode(decrypted));
+            },
+            
+            // Hash PIN for storage
+            async hashPin(pin) {
+                const enc = new TextEncoder();
+                const salt = 'PocketMemory_PIN_Salt_v1';
+                const data = enc.encode(pin + salt);
+                const hash = await crypto.subtle.digest('SHA-256', data);
+                return btoa(String.fromCharCode(...new Uint8Array(hash)));
+            }
+        };
+        
+        // ============================================
+        // SEARCH ENGINE
+        // ============================================
+        const SearchEngine = {
+            debounceTimer: null,
+            
+            // Tokenize text for indexing
+            tokenize(text) {
+                if (!text) return [];
+                return text.toLowerCase()
+                    .replace(/[^\w\s]/g, ' ')
+                    .split(/\s+/)
+                    .filter(t => t.length > 1);
+            },
+            
+            // Index a person and their fields
+            async indexPerson(personId) {
+                // Clear existing index for this person
+                await db.searchIndex.where('personId').equals(personId).delete();
+                
+                const person = await db.people.get(personId);
+                if (!person) return;
+                
+                const entries = [];
+                
+                // Index person name
+                for (const term of this.tokenize(person.fullName)) {
+                    entries.push({ personId, fieldId: null, type: 'name', term });
+                }
+                
+                // Index nickname
+                if (person.nickname) {
+                    for (const term of this.tokenize(person.nickname)) {
+                        entries.push({ personId, fieldId: null, type: 'nickname', term });
+                    }
+                }
+                
+                // Index fields
+                const fields = await db.fields.where('personId').equals(personId).toArray();
+                for (const field of fields) {
+                    // Index label
+                    for (const term of this.tokenize(field.label)) {
+                        entries.push({ personId, fieldId: field.id, type: 'label', term });
+                    }
+                    // Index value
+                    for (const term of this.tokenize(field.value)) {
+                        entries.push({ personId, fieldId: field.id, type: 'value', term });
+                    }
+                }
+                
+                await db.searchIndex.bulkAdd(entries);
+            },
+            
+            // Parse natural language query
+            parseQuery(query) {
+                const normalized = query.toLowerCase().trim();
+                
+                // Patterns to match
+                const patterns = [
+                    // "Sarah date of birth" or "Sarah's date of birth"
+                    /^(.+?)(?:'s)?\s+(date of birth|dob|birthday|birthdate|favorite\s+\w+|fav\s+\w+|phone|email|address|anniversary|allergies|mother|father|mom|dad|parents?)/i,
+                    // "What is Sarah's favorite food?"
+                    /^what(?:\s+is|\s+are)\s+(.+?)(?:'s)?\s+(.+?)\??$/i,
+                    // "favorite food" (global search)
+                    /^(favorite\s+\w+|fav\s+\w+|birthday|dob|phone|email|address)$/i
+                ];
+                
+                let personName = null;
+                let fieldQuery = null;
+                let isGlobalSearch = false;
+                
+                // Try patterns
+                for (let i = 0; i < patterns.length; i++) {
+                    const match = normalized.match(patterns[i]);
+                    if (match) {
+                        if (i === 0) {
+                            personName = match[1].trim();
+                            fieldQuery = match[2].trim();
+                        } else if (i === 1) {
+                            personName = match[1].trim();
+                            fieldQuery = match[2].trim();
+                        } else if (i === 2) {
+                            fieldQuery = match[1].trim();
+                            isGlobalSearch = true;
+                        }
+                        break;
+                    }
+                }
+                
+                // Expand synonyms in field query
+                let expandedFieldTerms = [];
+                if (fieldQuery) {
+                    const terms = this.tokenize(fieldQuery);
+                    for (const term of terms) {
+                        expandedFieldTerms.push(term);
+                        const synonyms = SYNONYM_MAP[term];
+                        if (synonyms) {
+                            expandedFieldTerms.push(...synonyms);
+                        }
+                    }
+                }
+                
+                return {
+                    original: query,
+                    personName,
+                    fieldQuery,
+                    expandedFieldTerms: [...new Set(expandedFieldTerms)],
+                    isGlobalSearch,
+                    tokens: this.tokenize(query)
+                };
+            },
+            
+            // Search and rank results
+            async search(query) {
+                if (!query || query.length < 2) return { results: [], answerCard: null };
+                
+                const parsed = this.parseQuery(query);
+                const results = [];
+                const scoreMap = new Map();
+                
+                // Get all search index entries
+                const allPeople = await db.people.toArray();
+                const allFields = await db.fields.toArray();
+                
+                // Score each person
+                for (const person of allPeople) {
+                    let score = 0;
+                    let matchedField = null;
+                    let matchType = null;
+                    
+                    const personFields = allFields.filter(f => f.personId === person.id);
+                    
+                    // Name match
+                    const nameLower = (person.fullName + ' ' + (person.nickname || '')).toLowerCase();
+                    for (const token of parsed.tokens) {
+                        if (nameLower.includes(token)) {
+                            score += 10;
+                            matchType = 'name';
+                        }
+                    }
+                    
+                    // If we have a specific person query, boost exact name match
+                    if (parsed.personName) {
+                        if (nameLower.includes(parsed.personName.toLowerCase())) {
+                            score += 50;
+                        }
+                    }
+                    
+                    // Field match
+                    for (const field of personFields) {
+                        let fieldScore = 0;
+                        const labelLower = field.label.toLowerCase();
+                        const valueLower = field.value.toLowerCase();
+                        
+                        // Check expanded field terms
+                        for (const term of parsed.expandedFieldTerms) {
+                            if (labelLower.includes(term)) {
+                                fieldScore += 20;
+                            }
+                        }
+                        
+                        // Value match
+                        for (const token of parsed.tokens) {
+                            if (valueLower.includes(token)) {
+                                fieldScore += 5;
+                            }
+                        }
+                        
+                        if (fieldScore > 0 && (!matchedField || fieldScore > matchedField.score)) {
+                            matchedField = { ...field, score: fieldScore };
+                        }
+                        
+                        score += fieldScore;
+                    }
+                    
+                    // Boost pinned
+                    if (person.pinned) score += 5;
+                    
+                    if (score > 0) {
+                        results.push({
+                            person,
+                            matchedField,
+                            score,
+                            matchType
+                        });
+                    }
+                }
+                
+                // Sort by score
+                results.sort((a, b) => b.score - a.score);
+                
+                // Determine if we have a direct answer
+                let answerCard = null;
+                if (results.length > 0 && parsed.fieldQuery && results[0].matchedField && results[0].score > 30) {
+                    const top = results[0];
+                    answerCard = {
+                        person: top.person,
+                        field: top.matchedField,
+                        query: query
+                    };
+                }
+                
+                return { results: results.slice(0, 20), answerCard, parsed };
+            }
+        };
+        
+        // ============================================
+        // MAIN APPLICATION
+        // ============================================
+        const app = {
+            currentScreen: 'home',
+            currentPersonId: null,
+            isLocked: true,
+            pinMode: null, // 'unlock', 'setup', 'confirm', 'change'
+            tempPin: '',
+            enteredPin: '',
+            
+            // ============================================
+            // INITIALIZATION
+            // ============================================
+            async init() {
+                // Check if app lock is enabled
+                const lockSetting = await db.settings.get('appLock');
+                const hasPin = await db.settings.get('pinHash');
+                
+                if (lockSetting?.value === true && hasPin) {
+                    this.showLockScreen('unlock');
+                } else if (!hasPin) {
+                    document.getElementById('setupPin').style.display = 'block';
+                    document.getElementById('pinKeypad').style.display = 'none';
+                    document.getElementById('pinDots').style.display = 'none';
+                } else {
+                    this.unlock();
+                }
+                
+                // Setup event listeners
+                this.setupEventListeners();
+                
+                // Load theme
+                const theme = await db.settings.get('darkMode');
+                if (theme?.value === false) {
+                    document.documentElement.classList.remove('dark');
+                    document.getElementById('darkModeToggle').checked = false;
+                }
+                
+                // Update lock toggle
+                if (lockSetting?.value === true) {
+                    document.getElementById('appLockToggle').checked = true;
+                    document.getElementById('changePinOption').style.display = 'block';
+                }
+            },
+            
+            setupEventListeners() {
+                // PIN keypad
+                document.getElementById('pinKeypad').addEventListener('click', (e) => {
+                    const key = e.target.closest('.pin-key');
+                    if (!key) return;
+                    const value = key.dataset.key;
+                    if (value === 'delete') {
+                        this.enteredPin = this.enteredPin.slice(0, -1);
+                    } else if (value === 'biometric') {
+                        this.tryBiometric();
+                    } else if (this.enteredPin.length < 4) {
+                        this.enteredPin += value;
+                    }
+                    this.updatePinDots();
+                    if (this.enteredPin.length === 4) {
+                        this.handlePinComplete();
+                    }
+                });
+                
+                // Search input with debounce
+                const searchInput = document.getElementById('searchInput');
+                searchInput.addEventListener('input', (e) => {
+                    clearTimeout(SearchEngine.debounceTimer);
+                    const query = e.target.value;
+                    
+                    document.getElementById('clearSearch').classList.toggle('hidden', !query);
+                    
+                    if (!query) {
+                        this.showDefaultHome();
+                        return;
+                    }
+                    
+                    SearchEngine.debounceTimer = setTimeout(() => {
+                        this.performSearch(query);
+                    }, 100); // 100ms debounce
+                });
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        this.closeModal();
+                    }
+                });
+            },
+            
+            // ============================================
+            // LOCK SCREEN
+            // ============================================
+            showLockScreen(mode = 'unlock') {
+                this.pinMode = mode;
+                this.enteredPin = '';
+                this.isLocked = true;
+                
+                document.getElementById('lockScreen').style.display = 'flex';
+                document.getElementById('pinKeypad').style.display = 'grid';
+                document.getElementById('pinDots').style.display = 'flex';
+                document.getElementById('setupPin').style.display = 'none';
+                
+                const messages = {
+                    'unlock': 'Enter your PIN',
+                    'setup': 'Create a new PIN',
+                    'confirm': 'Confirm your PIN',
+                    'change': 'Enter new PIN'
+                };
+                document.getElementById('lockMessage').textContent = messages[mode] || 'Enter PIN';
+                
+                this.updatePinDots();
+            },
+            
+            updatePinDots() {
+                const dots = document.querySelectorAll('.pin-dot');
+                dots.forEach((dot, i) => {
+                    dot.classList.toggle('filled', i < this.enteredPin.length);
+                });
+            },
+            
+            async handlePinComplete() {
+                if (this.pinMode === 'unlock') {
+                    const stored = await db.settings.get('pinHash');
+                    const hash = await Crypto.hashPin(this.enteredPin);
+                    if (hash === stored?.value) {
+                        this.unlock();
+                    } else {
+                        this.showToast('Incorrect PIN', 'error');
+                        this.enteredPin = '';
+                        this.updatePinDots();
+                        // Shake animation
+                        document.getElementById('pinDots').style.animation = 'shake 0.5s';
+                        setTimeout(() => {
+                            document.getElementById('pinDots').style.animation = '';
+                        }, 500);
+                    }
+                } else if (this.pinMode === 'setup') {
+                    this.tempPin = this.enteredPin;
+                    this.enteredPin = '';
+                    this.pinMode = 'confirm';
+                    document.getElementById('lockMessage').textContent = 'Confirm your PIN';
+                    this.updatePinDots();
+                } else if (this.pinMode === 'confirm') {
+                    if (this.enteredPin === this.tempPin) {
+                        const hash = await Crypto.hashPin(this.enteredPin);
+                        await db.settings.put({ key: 'pinHash', value: hash });
+                        await db.settings.put({ key: 'appLock', value: true });
+                        document.getElementById('appLockToggle').checked = true;
+                        document.getElementById('changePinOption').style.display = 'block';
+                        this.showToast('PIN created successfully', 'success');
+                        this.unlock();
+                    } else {
+                        this.showToast('PINs don\'t match. Try again.', 'error');
+                        this.enteredPin = '';
+                        this.tempPin = '';
+                        this.pinMode = 'setup';
+                        document.getElementById('lockMessage').textContent = 'Create a new PIN';
+                        this.updatePinDots();
+                    }
+                } else if (this.pinMode === 'change') {
+                    this.tempPin = this.enteredPin;
+                    this.enteredPin = '';
+                    this.pinMode = 'confirm';
+                    document.getElementById('lockMessage').textContent = 'Confirm new PIN';
+                    this.updatePinDots();
+                }
+            },
+            
+            startPinSetup() {
+                this.showLockScreen('setup');
+            },
+            
+            skipPin() {
+                this.unlock();
+            },
+            
+            unlock() {
+                this.isLocked = false;
+                document.getElementById('lockScreen').style.display = 'none';
+                this.navigateTo('home');
+                this.loadHomeScreen();
+            },
+            
+            // ============================================
+            // NAVIGATION
+            // ============================================
+            navigateTo(screen, data = null) {
+                // Hide all screens
+                document.querySelectorAll('.screen').forEach(s => {
+                    s.classList.remove('active');
+                    s.classList.add('slide-out');
+                });
+                
+                // Show target screen
+                setTimeout(() => {
+                    document.querySelectorAll('.screen').forEach(s => s.classList.remove('slide-out'));
+                    document.getElementById(`${screen}Screen`).classList.add('active');
+                    this.currentScreen = screen;
+                    
+                    if (screen === 'home') {
+                        this.loadHomeScreen();
+                    } else if (screen === 'person' && data) {
+                        this.loadPersonScreen(data);
+                    }
+                }, 50);
+            },
+            
+            // ============================================
+            // HOME SCREEN
+            // ============================================
+            async loadHomeScreen() {
+                const people = await db.people.toArray();
+                const pinnedPeople = people.filter(p => p.pinned);
+                const recentSearches = await db.recentSearches.orderBy('timestamp').reverse().limit(5).toArray();
+                
+                // Update subtitle
+                document.getElementById('homeSubtitle').textContent = 
+                    `${people.length} ${people.length === 1 ? 'person' : 'people'} saved`;
+                
+                // Pinned section
+                const pinnedSection = document.getElementById('pinnedSection');
+                const pinnedContainer = document.getElementById('pinnedPeople');
+                if (pinnedPeople.length > 0) {
+                    pinnedSection.style.display = 'block';
+                    pinnedContainer.innerHTML = pinnedPeople.map(p => `
+                        <div class="glass-card p-3 flex-shrink-0 cursor-pointer min-w-[120px]" onclick="app.openPerson(${p.id})">
+                            <div class="avatar mx-auto mb-2">${this.getInitials(p.fullName)}</div>
+                            <p class="text-sm font-medium text-center truncate">${p.fullName}</p>
+                            <p class="text-xs text-[var(--color-text-muted)] text-center truncate">${p.relationship || ''}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    pinnedSection.style.display = 'none';
+                }
+                
+                // Recent searches
+                const recentSection = document.getElementById('recentSection');
+                const recentContainer = document.getElementById('recentSearches');
+                if (recentSearches.length > 0) {
+                    recentSection.style.display = 'block';
+                    recentContainer.innerHTML = recentSearches.map(s => `
+                        <button class="btn-secondary text-sm" onclick="app.searchFor('${s.query.replace(/'/g, "\\'")}')">
+                            ${s.query}
+                        </button>
+                    `).join('');
+                } else {
+                    recentSection.style.display = 'none';
+                }
+                
+                // All people
+                const allPeopleContainer = document.getElementById('allPeople');
+                if (people.length > 0) {
+                    allPeopleContainer.innerHTML = people.map(p => this.renderPersonTile(p)).join('');
+                } else {
+                    allPeopleContainer.innerHTML = `
+                        <div class="empty-state">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                            <h3 class="text-lg font-medium mb-2">No people yet</h3>
+                            <p class="text-[var(--color-text-muted)] mb-4">Add someone to get started</p>
+                            <button class="btn-primary" onclick="app.showAddPerson()">Add First Person</button>
+                        </div>
+                    `;
+                }
+            },
+            
+            renderPersonTile(person, matchedField = null) {
+                return `
+                    <div class="glass-card p-4 mb-3 cursor-pointer flex items-center gap-4" onclick="app.openPerson(${person.id})">
+                        <div class="avatar">${this.getInitials(person.fullName)}</div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium truncate">${person.fullName}</p>
+                            <p class="text-sm text-[var(--color-text-muted)] truncate">${person.relationship || ''}</p>
+                            ${matchedField ? `
+                                <p class="text-sm text-[var(--color-accent)] mt-1">
+                                    ${matchedField.label}: ${matchedField.value}
+                                </p>
+                            ` : ''}
+                        </div>
+                        ${person.pinned ? '<span class="text-amber-400">📌</span>' : ''}
+                    </div>
+                `;
+            },
+            
+            getInitials(name) {
+                return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+            },
+            
+            // ============================================
+            // SEARCH
+            // ============================================
+            async performSearch(query) {
+                const { results, answerCard, parsed } = await SearchEngine.search(query);
+                
+                const searchResultsEl = document.getElementById('searchResults');
+                const defaultHomeEl = document.getElementById('defaultHome');
+                
+                defaultHomeEl.style.display = 'none';
+                searchResultsEl.style.display = 'block';
+                
+                let html = '';
+                
+                // Answer card
+                if (answerCard) {
+                    html += `
+                        <div class="answer-card mb-4">
+                            <p class="text-sm opacity-80 mb-1">${answerCard.person.fullName}'s ${answerCard.field.label}</p>
+                            <p class="text-3xl font-bold mb-3">${answerCard.field.value}</p>
+                            <div class="flex gap-2">
+                                <button class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all" onclick="app.copyValue('${answerCard.field.value.replace(/'/g, "\\'")}')">
+                                    📋 Copy
+                                </button>
+                                <button class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all" onclick="app.openPerson(${answerCard.person.id})">
+                                    View Details →
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Results list
+                if (results.length > 0) {
+                    html += '<h3 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">Results</h3>';
+                    html += results.map(r => this.renderPersonTile(r.person, r.matchedField)).join('');
+                } else if (!answerCard) {
+                    html = `
+                        <div class="empty-state">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                            <h3 class="text-lg font-medium mb-2">No results found</h3>
+                            <p class="text-[var(--color-text-muted)]">Try a different search term</p>
+                        </div>
+                    `;
+                }
+                
+                searchResultsEl.innerHTML = html;
+                
+                // Save to recent searches
+                if (query.length > 2) {
+                    await db.recentSearches.add({ query, timestamp: Date.now() });
+                    // Keep only last 10
+                    const all = await db.recentSearches.orderBy('timestamp').toArray();
+                    if (all.length > 10) {
+                        await db.recentSearches.delete(all[0].id);
+                    }
+                }
+            },
+            
+            searchFor(query) {
+                document.getElementById('searchInput').value = query;
+                this.performSearch(query);
+            },
+            
+            clearSearch() {
+                document.getElementById('searchInput').value = '';
+                document.getElementById('clearSearch').classList.add('hidden');
+                this.showDefaultHome();
+            },
+            
+            showDefaultHome() {
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('defaultHome').style.display = 'block';
+            },
+            
+            copyValue(value) {
+                navigator.clipboard.writeText(value).then(() => {
+                    this.showToast('Copied to clipboard', 'success');
+                });
+            },
+            
+            // ============================================
+            // PERSON SCREEN
+            // ============================================
+            async openPerson(id) {
+                this.currentPersonId = id;
+                this.navigateTo('person', id);
+            },
+            
+            async loadPersonScreen(id) {
+                const person = await db.people.get(id);
+                if (!person) {
+                    this.navigateTo('home');
+                    return;
+                }
+                
+                const fields = await db.fields.where('personId').equals(id).toArray();
+                
+                // Header
+                const headerEl = document.getElementById('personHeader');
+                headerEl.innerHTML = `
+                    <div class="avatar avatar-lg">${this.getInitials(person.fullName)}</div>
+                    <div>
+                        <h2 class="text-2xl font-bold">${person.fullName}</h2>
+                        ${person.nickname ? `<p class="text-[var(--color-text-muted)]">"${person.nickname}"</p>` : ''}
+                        ${person.relationship ? `<p class="text-[var(--color-accent)]">${person.relationship}</p>` : ''}
+                    </div>
+                `;
+                
+                // Update pin button
+                const pinBtn = document.getElementById('pinToggle');
+                pinBtn.innerHTML = person.pinned 
+                    ? '<svg class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>'
+                    : '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>';
+                
+                // Fields grouped by category
+                const fieldsEl = document.getElementById('personFields');
+                if (fields.length > 0) {
+                    const grouped = {};
+                    for (const field of fields) {
+                        if (!grouped[field.category]) grouped[field.category] = [];
+                        grouped[field.category].push(field);
+                    }
+                    
+                    let html = '<div class="fields-container">';
+                    for (const category of CATEGORIES) {
+                        if (grouped[category]?.length > 0) {
+                            html += `
+                                <section class="mb-6">
+                                    <h3 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3 sticky top-0 bg-[var(--color-bg-primary)] py-2 -mt-2 z-10">
+                                        ${this.getCategoryEmoji(category)} ${category}
+                                    </h3>
+                                    <div class="space-y-2">
+                                        ${grouped[category].map(f => this.renderFieldTile(f)).join('')}
+                                    </div>
+                                </section>
+                            `;
+                        }
+                    }
+                    
+                    // Notes section inside the container
+                    if (person.notes) {
+                        html += `
+                            <section class="mb-6">
+                                <h3 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3 sticky top-0 bg-[var(--color-bg-primary)] py-2 -mt-2 z-10">
+                                    📝 Notes
+                                </h3>
+                                <div class="glass-card p-4">
+                                    <p class="whitespace-pre-wrap">${person.notes}</p>
+                                </div>
+                            </section>
+                        `;
+                    }
+                    
+                    // Add some bottom padding for FAB
+                    html += '<div class="h-20"></div>';
+                    html += '</div>';
+                    fieldsEl.innerHTML = html;
+                } else {
+                    let html = `
+                        <div class="empty-state">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                            </svg>
+                            <h3 class="text-lg font-medium mb-2">No details yet</h3>
+                            <p class="text-[var(--color-text-muted)] mb-4">Add their favorites, important dates, and more</p>
+                            <button class="btn-primary" onclick="app.showAddField()">Add First Detail</button>
+                        </div>
+                    `;
+                    
+                    // Notes even when no fields
+                    if (person.notes) {
+                        html += `
+                            <section class="mb-6 px-4">
+                                <h3 class="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+                                    📝 Notes
+                                </h3>
+                                <div class="glass-card p-4">
+                                    <p class="whitespace-pre-wrap">${person.notes}</p>
+                                </div>
+                            </section>
+                        `;
+                    }
+                    
+                    fieldsEl.innerHTML = html;
+                }
+            },
+            
+            renderFieldTile(field) {
+                return `
+                    <div class="glass-card p-4 flex items-center gap-3 hover:scale-[1.01] active:scale-[0.99] transition-transform">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm text-[var(--color-text-muted)]">${field.label}</p>
+                            <p class="font-medium break-words ${field.isSensitive ? 'blur-sm hover:blur-none transition-all cursor-pointer' : ''}">${field.value}</p>
+                        </div>
+                        <div class="flex gap-1 flex-shrink-0">
+                            <button class="btn-icon !w-10 !h-10 !min-h-0" onclick="event.stopPropagation(); app.copyValue('${field.value.replace(/'/g, "\\'")}')" aria-label="Copy value">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                                </svg>
+                            </button>
+                            <button class="btn-icon !w-10 !h-10 !min-h-0" onclick="event.stopPropagation(); app.showEditField(${field.id})" aria-label="Edit field">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            },
+            
+            getCategoryEmoji(category) {
+                const emojis = {
+                    'Favorites': '⭐',
+                    'Family': '👨‍👩‍👧',
+                    'Important': '📌',
+                    'Health': '🏥',
+                    'Work': '💼',
+                    'Other': '📋'
+                };
+                return emojis[category] || '📋';
+            },
+            
+            async togglePin() {
+                const person = await db.people.get(this.currentPersonId);
+                if (!person) return;
+                
+                await db.people.update(this.currentPersonId, { pinned: !person.pinned });
+                this.loadPersonScreen(this.currentPersonId);
+                this.showToast(person.pinned ? 'Unpinned' : 'Pinned', 'success');
+            },
+            
+            // ============================================
+            // ADD/EDIT PERSON
+            // ============================================
+            showAddPerson() {
+                this.showModal(`
+                    <h2 class="text-xl font-bold mb-6">Add Person</h2>
+                    <form id="addPersonForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Full Name *</label>
+                            <input type="text" name="fullName" class="input-field" required placeholder="e.g., Sarah Johnson">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Nickname</label>
+                            <input type="text" name="nickname" class="input-field" placeholder="e.g., Sassy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Relationship</label>
+                            <input type="text" name="relationship" class="input-field" placeholder="e.g., Friend, Sister, Colleague">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Notes</label>
+                            <textarea name="notes" class="input-field min-h-[100px]" placeholder="Any other notes..."></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary w-full">Add Person</button>
+                    </form>
+                `);
+                
+                document.getElementById('addPersonForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    const data = {
+                        fullName: form.fullName.value.trim(),
+                        nickname: form.nickname.value.trim() || null,
+                        relationship: form.relationship.value.trim() || null,
+                        notes: form.notes.value.trim() || null,
+                        pinned: false,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                    };
+                    
+                    const id = await db.people.add(data);
+                    await SearchEngine.indexPerson(id);
+                    this.closeModal();
+                    this.showToast('Person added', 'success');
+                    this.openPerson(id);
+                };
+            },
+            
+            async showEditPerson() {
+                const person = await db.people.get(this.currentPersonId);
+                if (!person) return;
+                
+                this.showModal(`
+                    <h2 class="text-xl font-bold mb-6">Edit Person</h2>
+                    <form id="editPersonForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Full Name *</label>
+                            <input type="text" name="fullName" class="input-field" required value="${person.fullName}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Nickname</label>
+                            <input type="text" name="nickname" class="input-field" value="${person.nickname || ''}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Relationship</label>
+                            <input type="text" name="relationship" class="input-field" value="${person.relationship || ''}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Notes</label>
+                            <textarea name="notes" class="input-field min-h-[100px]">${person.notes || ''}</textarea>
+                        </div>
+                        <button type="submit" class="btn-primary w-full">Save Changes</button>
+                    </form>
+                `);
+                
+                document.getElementById('editPersonForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    await db.people.update(this.currentPersonId, {
+                        fullName: form.fullName.value.trim(),
+                        nickname: form.nickname.value.trim() || null,
+                        relationship: form.relationship.value.trim() || null,
+                        notes: form.notes.value.trim() || null,
+                        updatedAt: Date.now()
+                    });
+                    await SearchEngine.indexPerson(this.currentPersonId);
+                    this.closeModal();
+                    this.showToast('Changes saved', 'success');
+                    this.loadPersonScreen(this.currentPersonId);
+                };
+            },
+            
+            confirmDeletePerson() {
+                this.showModal(`
+                    <div class="text-center">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Delete Person?</h3>
+                        <p class="text-[var(--color-text-secondary)] mb-6">This will delete all their information permanently.</p>
+                        <div class="flex gap-3">
+                            <button class="btn-secondary flex-1" onclick="app.closeModal()">Cancel</button>
+                            <button class="btn-primary flex-1 !bg-red-500" onclick="app.deletePerson()">Delete</button>
+                        </div>
+                    </div>
+                `);
+            },
+            
+            async deletePerson() {
+                const personId = this.currentPersonId;
+                const person = await db.people.get(personId);
+                
+                // Delete person and their fields
+                await db.fields.where('personId').equals(personId).delete();
+                await db.searchIndex.where('personId').equals(personId).delete();
+                await db.people.delete(personId);
+                
+                this.closeModal();
+                this.navigateTo('home');
+                
+                // Show undo toast
+                this.showToast('Person deleted', 'info', {
+                    action: 'Undo',
+                    onAction: async () => {
+                        // Restore person (simplified - in production would save full backup)
+                        await db.people.add(person);
+                        await SearchEngine.indexPerson(person.id);
+                        this.loadHomeScreen();
+                    }
+                });
+            },
+            
+            // ============================================
+            // ADD/EDIT FIELD
+            // ============================================
+            showAddField() {
+                const presetHtml = FIELD_PRESETS.map(p => `
+                    <button type="button" class="btn-secondary text-sm whitespace-nowrap" onclick="app.useFieldPreset('${p.label}', '${p.valueType}', '${p.category}')">
+                        ${p.icon} ${p.label}
+                    </button>
+                `).join('');
+                
+                this.showModal(`
+                    <h2 class="text-xl font-bold mb-4">Add Detail</h2>
+                    
+                    <p class="text-sm text-[var(--color-text-muted)] mb-3">Quick add:</p>
+                    <div class="overflow-x-auto -mx-2 px-2 pb-2 mb-4">
+                        <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">${presetHtml}</div>
+                    </div>
+                    
+                    <form id="addFieldForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Label *</label>
+                            <input type="text" name="label" id="fieldLabel" class="input-field" required placeholder="e.g., Favorite Movie">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Value *</label>
+                            <input type="text" name="value" id="fieldValue" class="input-field" required placeholder="e.g., The Shawshank Redemption">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Category</label>
+                            <select name="category" id="fieldCategory" class="input-field">
+                                ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" name="isSensitive" id="fieldSensitive" class="w-5 h-5 rounded">
+                            <label for="fieldSensitive" class="text-sm">Mark as sensitive (blur by default)</label>
+                        </div>
+                        <input type="hidden" name="valueType" id="fieldValueType" value="text">
+                        <button type="submit" class="btn-primary w-full">Add Detail</button>
+                    </form>
+                `);
+                
+                document.getElementById('addFieldForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    await db.fields.add({
+                        personId: this.currentPersonId,
+                        label: form.label.value.trim(),
+                        value: form.value.value.trim(),
+                        valueType: form.valueType.value,
+                        category: form.category.value,
+                        isSensitive: form.isSensitive.checked,
+                        lastUpdated: Date.now()
+                    });
+                    await SearchEngine.indexPerson(this.currentPersonId);
+                    this.closeModal();
+                    this.showToast('Detail added', 'success');
+                    this.loadPersonScreen(this.currentPersonId);
+                };
+            },
+            
+            useFieldPreset(label, valueType, category) {
+                document.getElementById('fieldLabel').value = label;
+                document.getElementById('fieldValueType').value = valueType;
+                document.getElementById('fieldCategory').value = category;
+                document.getElementById('fieldValue').focus();
+            },
+            
+            async showEditField(fieldId) {
+                const field = await db.fields.get(fieldId);
+                if (!field) return;
+                
+                this.showModal(`
+                    <h2 class="text-xl font-bold mb-6">Edit Detail</h2>
+                    <form id="editFieldForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Label *</label>
+                            <input type="text" name="label" class="input-field" required value="${field.label}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Value *</label>
+                            <input type="text" name="value" class="input-field" required value="${field.value}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Category</label>
+                            <select name="category" class="input-field">
+                                ${CATEGORIES.map(c => `<option value="${c}" ${field.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" name="isSensitive" id="editFieldSensitive" class="w-5 h-5 rounded" ${field.isSensitive ? 'checked' : ''}>
+                            <label for="editFieldSensitive" class="text-sm">Mark as sensitive</label>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="button" class="btn-secondary flex-1 text-red-400" onclick="app.deleteField(${fieldId})">Delete</button>
+                            <button type="submit" class="btn-primary flex-1">Save</button>
+                        </div>
+                    </form>
+                `);
+                
+                document.getElementById('editFieldForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    await db.fields.update(fieldId, {
+                        label: form.label.value.trim(),
+                        value: form.value.value.trim(),
+                        category: form.category.value,
+                        isSensitive: form.isSensitive.checked,
+                        lastUpdated: Date.now()
+                    });
+                    await SearchEngine.indexPerson(this.currentPersonId);
+                    this.closeModal();
+                    this.showToast('Detail updated', 'success');
+                    this.loadPersonScreen(this.currentPersonId);
+                };
+            },
+            
+            async deleteField(fieldId) {
+                await db.fields.delete(fieldId);
+                await SearchEngine.indexPerson(this.currentPersonId);
+                this.closeModal();
+                this.showToast('Detail deleted', 'success');
+                this.loadPersonScreen(this.currentPersonId);
+            },
+            
+            // ============================================
+            // SETTINGS
+            // ============================================
+            async toggleAppLock() {
+                const toggle = document.getElementById('appLockToggle');
+                const hasPin = await db.settings.get('pinHash');
+                
+                if (toggle.checked) {
+                    if (!hasPin) {
+                        this.showLockScreen('setup');
+                    } else {
+                        await db.settings.put({ key: 'appLock', value: true });
+                        document.getElementById('changePinOption').style.display = 'block';
+                    }
+                } else {
+                    await db.settings.put({ key: 'appLock', value: false });
+                    document.getElementById('changePinOption').style.display = 'none';
+                }
+            },
+            
+            showChangePinModal() {
+                this.showLockScreen('change');
+            },
+            
+            async toggleDarkMode() {
+                const isDark = document.getElementById('darkModeToggle').checked;
+                document.documentElement.classList.toggle('dark', isDark);
+                await db.settings.put({ key: 'darkMode', value: isDark });
+            },
+            
+            // ============================================
+            // BACKUP / RESTORE
+            // ============================================
+            async exportBackup() {
+                this.showModal(`
+                    <h2 class="text-xl font-bold mb-4">Export Encrypted Backup</h2>
+                    <p class="text-[var(--color-text-secondary)] mb-4">Enter a password to encrypt your backup. Keep this password safe - you'll need it to restore.</p>
+                    <form id="exportForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Backup Password *</label>
+                            <input type="password" name="password" class="input-field" required minlength="6" placeholder="At least 6 characters">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Confirm Password *</label>
+                            <input type="password" name="confirmPassword" class="input-field" required placeholder="Repeat password">
+                        </div>
+                        <button type="submit" class="btn-primary w-full">Create Encrypted Backup</button>
+                    </form>
+                `);
+                
+                document.getElementById('exportForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    
+                    if (form.password.value !== form.confirmPassword.value) {
+                        this.showToast('Passwords don\'t match', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        // Gather all data
+                        const data = {
+                            version: 1,
+                            timestamp: Date.now(),
+                            people: await db.people.toArray(),
+                            fields: await db.fields.toArray()
+                        };
+                        
+                        // Encrypt
+                        const encrypted = await Crypto.encrypt(data, form.password.value);
+                        
+                        // Download
+                        const blob = new Blob([encrypted], { type: 'application/octet-stream' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `pocketmemory-backup-${new Date().toISOString().slice(0,10)}.pocketmemory`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        
+                        this.closeModal();
+                        this.showToast('Backup created successfully', 'success');
+                    } catch (err) {
+                        this.showToast('Failed to create backup', 'error');
+                        console.error(err);
+                    }
+                };
+            },
+            
+            importBackup() {
+                document.getElementById('importFile').click();
+            },
+            
+            async handleImportFile(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const content = await file.text();
+                
+                this.showModal(`
+                    <h2 class="text-xl font-bold mb-4">Import Backup</h2>
+                    <p class="text-[var(--color-text-secondary)] mb-4">Enter the password used to create this backup.</p>
+                    <form id="importForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Backup Password *</label>
+                            <input type="password" name="password" class="input-field" required placeholder="Enter backup password">
+                        </div>
+                        <p class="text-sm text-amber-400">⚠️ This will merge with your existing data.</p>
+                        <button type="submit" class="btn-primary w-full">Restore Backup</button>
+                    </form>
+                `);
+                
+                document.getElementById('importForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    
+                    try {
+                        const data = await Crypto.decrypt(content, form.password.value);
+                        
+                        // Validate structure
+                        if (!data.people || !data.fields) {
+                            throw new Error('Invalid backup format');
+                        }
+                        
+                        // Import data (merge strategy: add new, skip existing IDs)
+                        let added = 0;
+                        for (const person of data.people) {
+                            const existing = await db.people.get(person.id);
+                            if (!existing) {
+                                await db.people.add(person);
+                                await SearchEngine.indexPerson(person.id);
+                                added++;
+                            }
+                        }
+                        
+                        for (const field of data.fields) {
+                            const existing = await db.fields.get(field.id);
+                            if (!existing) {
+                                await db.fields.add(field);
+                            }
+                        }
+                        
+                        this.closeModal();
+                        this.showToast(`Restored ${added} people from backup`, 'success');
+                        this.loadHomeScreen();
+                    } catch (err) {
+                        this.showToast('Failed to restore: wrong password or corrupt file', 'error');
+                        console.error(err);
+                    }
+                };
+                
+                // Reset file input
+                event.target.value = '';
+            },
+            
+            confirmClearAllData() {
+                this.showModal(`
+                    <div class="text-center">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Delete All Data?</h3>
+                        <p class="text-[var(--color-text-secondary)] mb-6">This will permanently delete all your data. This cannot be undone.</p>
+                        <div class="flex gap-3">
+                            <button class="btn-secondary flex-1" onclick="app.closeModal()">Cancel</button>
+                            <button class="btn-primary flex-1 !bg-red-500" onclick="app.clearAllData()">Delete Everything</button>
+                        </div>
+                    </div>
+                `);
+            },
+            
+            async clearAllData() {
+                await db.people.clear();
+                await db.fields.clear();
+                await db.searchIndex.clear();
+                await db.recentSearches.clear();
+                
+                this.closeModal();
+                this.navigateTo('home');
+                this.showToast('All data deleted', 'success');
+            },
+            
+            // ============================================
+            // MODAL
+            // ============================================
+            showModal(content) {
+                document.getElementById('modalContent').innerHTML = content;
+                document.getElementById('modalOverlay').classList.add('active');
+            },
+            
+            closeModal(event) {
+                if (event && event.target !== event.currentTarget) return;
+                document.getElementById('modalOverlay').classList.remove('active');
+            },
+            
+            // ============================================
+            // TOAST
+            // ============================================
+            showToast(message, type = 'info', options = {}) {
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                toast.className = 'toast';
+                
+                const icons = {
+                    success: '<svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+                    error: '<svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
+                    info: '<svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+                };
+                
+                toast.innerHTML = `
+                    ${icons[type] || icons.info}
+                    <span class="flex-1">${message}</span>
+                    ${options.action ? `<button class="text-[var(--color-accent)] font-medium" id="toastAction">${options.action}</button>` : ''}
+                `;
+                
+                container.appendChild(toast);
+                
+                if (options.action && options.onAction) {
+                    toast.querySelector('#toastAction').onclick = () => {
+                        options.onAction();
+                        toast.remove();
+                    };
+                }
+                
+                setTimeout(() => {
+                    toast.classList.add('toast-out');
+                    setTimeout(() => toast.remove(), 200);
+                }, options.action ? 5000 : 3000);
+            }
+        };
+        
+        // ============================================
+        // INITIALIZE APP
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+        
+        // Add shake animation for wrong PIN
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+                20%, 40%, 60%, 80% { transform: translateX(5px); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
